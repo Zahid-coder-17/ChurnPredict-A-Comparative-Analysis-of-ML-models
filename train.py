@@ -3,7 +3,7 @@ import numpy as np
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, precision_score, recall_score
 from xgboost import XGBClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
@@ -56,15 +56,32 @@ models = {
 }
 
 results = {}
+evaluation_records = []
 
 for name, model in models.items():
     model.fit(X_train_scaled, y_train)
     y_pred = model.predict(X_test_scaled)
     y_prob = model.predict_proba(X_test_scaled)[:, 1]
     
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_prob)
-    results[name] = {'F1': f1, 'ROC_AUC': roc_auc, 'model': model}
+    
+    results[name] = {'Precision': precision, 'Recall': recall, 'F1': f1, 'ROC_AUC': roc_auc, 'model': model}
+    evaluation_records.append({
+        'Model': name,
+        'Precision': f"{precision:.4f}",
+        'Recall': f"{recall:.4f}",
+        'F1 Score': f"{f1:.4f}",
+        'ROC-AUC': f"{roc_auc:.4f}"
+    })
+
+# Evaluation Framework Output
+eval_df = pd.DataFrame(evaluation_records)
+print("\n--- Model Evaluation Framework Results ---")
+print(eval_df.to_string(index=False))
+print("------------------------------------------\n")
 
 # Find best model based on F1
 best_model_name = max(results, key=lambda k: results[k]['F1'])
@@ -72,7 +89,8 @@ best_model = results[best_model_name]['model']
 best_f1 = results[best_model_name]['F1'] * 100
 best_roc = results[best_model_name]['ROC_AUC'] * 100
 
-print(f"Benchmarked 5 ML models (XGBoost, SVM, Random Forest, Logistic Regression, KNN) on {num_records}-record dataset — best model: {best_f1:.1f}% F1  ·  {best_roc:.1f}% ROC-AUC")
+summary_text = f"Benchmarked 5 ML models (XGBoost, SVM, Random Forest, Logistic Regression, KNN) on {num_records}-record dataset — best model: {best_f1:.1f}% F1  ·  {best_roc:.1f}% ROC-AUC"
+print(summary_text)
 
 # Save the best model and preprocessing objects
 joblib.dump({
@@ -84,4 +102,7 @@ joblib.dump({
 }, 'churn_model.pkl')
 
 with open('metrics.txt', 'w') as f:
-    f.write(f"Benchmarked 5 ML models (XGBoost, SVM, Random Forest, Logistic Regression, KNN) on {num_records}-record dataset — best model: {best_f1:.1f}% F1  ·  {best_roc:.1f}% ROC-AUC")
+    f.write(summary_text + "\n\n")
+    f.write("--- Model Evaluation Framework Results ---\n")
+    f.write(eval_df.to_string(index=False) + "\n")
+    f.write("------------------------------------------\n")
